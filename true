@@ -1,0 +1,134 @@
+from selenium import webdriver
+from datetime import datetime as dt
+from selenium.webdriver.common.action_chains import ActionChains
+import json
+import time
+from selenium.webdriver.common.keys import Keys
+
+number = input('ID товара >> ')
+
+
+def link(number):
+    link1 = 'https://www.wildberries.ru/catalog/' + number + '/detail.aspx?targetUrl=GP'
+    return link1
+
+
+def date():
+    data = dt.now().strftime("%d %B %y  %H_%M_%S")
+    return data
+
+
+class FeedBack():
+    def __init__(self):
+        self.driver = webdriver.Chrome()
+        self.feedback = {'mainFeedBack': {}}
+        self.feedback_junior = []
+        self.update_feedback = {'updatedFeedBack': {}}
+        self.reply_feedback = {'reply_feedBack1': {}}
+        self.reply_feedback1 = {'reply_feedBack2': {}}
+        self.feedbacks = {'feedBacks': self.feedback_junior}
+        self.file = open(date() + ' ' + number + '.json', 'a', encoding='utf-8')
+
+    def start(self):
+        self.driver.get(link(number))
+
+    def scroll(self):
+        self.driver.find_element_by_tag_name('body').send_keys(Keys.END)
+
+    def end(self):
+        self.driver.close()
+        print('Выхожу из соц.сети "ВК".')
+
+    def len_otzivi(self):
+        length = self.driver.find_element_by_id('a-Comments').text[7:]
+        return int(length) // 20 + 1
+
+    def show_more(self):
+        while True:
+            try:
+                span = self.driver.find_element_by_class_name('show-more')
+                action = ActionChains(self.driver)
+                action.move_to_element(span).perform()
+                span.click()
+            except:
+                break
+            time.sleep(3)
+
+    def save(self, fedback):
+        json.dump(fedback, self.file, ensure_ascii=False)
+
+    def close_file(self):
+        self.file.close()
+
+    def otzivi(self):
+        self.start()
+        time.sleep(10)
+        self.show_more()
+        fedd_otzivi = self.driver.find_element_by_id('Comments')
+        one_otzivi = fedd_otzivi.find_elements_by_class_name('j-b-comment')
+        for i in one_otzivi:
+
+            spisok = i.find_elements_by_class_name('j-b-comment-content')
+
+            for j in spisok:
+
+                try:
+                    name = j.find_element_by_class_name('author').text
+
+                except:
+                    name = ''
+
+                finally:
+                    assessment = j.find_element_by_class_name('rating').text
+                    text = j.find_element_by_class_name('item-comment').text
+                    color = j.find_element_by_class_name('color').text
+
+                if spisok.index(j) == 0:
+                    comments_time = j.find_element_by_class_name('time').get_attribute('content')[:19]
+                    data_from_id = j.get_attribute('data-feedback')[15:-2]
+                    to_json = {'name': name, 'id': data_from_id, 'assessment': assessment,
+                               'time': comments_time.replace("T", " "), 'color': color, 'text': text}
+                    self.feedback['mainFeedBack'].update(to_json)
+
+                    try:
+                        reply = j.find_element_by_class_name('reply-block')
+                        from_reply = reply.find_element_by_class_name('meta').text
+                        reply_text = reply.find_element_by_class_name('body').text
+                        to_json_reply = {'from': from_reply, 'text': reply_text}
+                        self.reply_feedback['reply_feedBack1'].update(to_json_reply)
+
+                    except:
+                        pass
+
+                if spisok.index(j) == 1:
+                    comments_time = j.find_element_by_class_name('last-comment_update').text[15::]
+                    data_from_id = j.get_attribute('data-feedback')[15:-2]
+                    to_json = {'id': data_from_id, 'assessment': assessment, 'text': text, 'time': comments_time}
+                    self.update_feedback['updatedFeedBack'].update(to_json)
+
+                    try:
+                        reply = j.find_element_by_class_name('reply-block')
+                        from_reply = reply.find_element_by_class_name('meta').text
+                        reply_text = reply.find_element_by_class_name('body').text
+                        to_json_reply1 = {'from': from_reply, 'text': reply_text}
+                        self.reply_feedback1['reply_feedBack2'].update(to_json_reply1)
+
+                    except:
+                        pass
+
+                self.update_feedback['updatedFeedBack'].update(self.reply_feedback1)
+                self.feedback['mainFeedBack'].update(self.reply_feedback)
+                self.feedback['mainFeedBack'].update(self.update_feedback)
+                self.feedback_junior.append(self.feedback)
+
+            self.update_feedback['updatedFeedBack'] = {}
+            self.reply_feedback['reply_feedBack1'] = {}
+            self.reply_feedback1['reply_feedBack2'] = {}
+            self.save(self.feedback)
+
+        self.close_file()
+
+
+link(number)
+fb = FeedBack()
+fb.otzivi()
